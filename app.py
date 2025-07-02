@@ -94,12 +94,14 @@ def korelasi_data_nilai():
     st.subheader("📁 Hasil Uji Korelasi - Data Nilai Transkrip Mahasiswa")
 
     uploaded_transkrip = st.file_uploader("Unggah file data transkrip mahasiswa (.xlsx)", type=["xlsx"])
-    uploaded_sks = st.file_uploader("Unggah file mapping SKS mata kuliah (.csv)", type=["csv"])
 
-    if uploaded_transkrip is not None and uploaded_sks is not None:
+    if uploaded_transkrip is not None:
         if st.button("🚀 Jalankan Analisis Korelasi"):
             analysis_df = pd.read_excel(uploaded_transkrip)
-            sks_df = pd.read_csv(uploaded_sks)
+
+            # Load SKS mapping dari GitHub
+            url_sks = "https://raw.githubusercontent.com/username/repo/main/sks_mapping.csv"
+            sks_df = pd.read_csv(url_sks)
 
             nilai_cols = [col for col in analysis_df.columns if col.endswith("(nilai)")]
             hadir_cols = [col.replace("(nilai)", "(hadir)") for col in nilai_cols]
