@@ -85,7 +85,7 @@ def korelasi_data_nilai():
             analysis_df = pd.read_excel(uploaded_transkrip)
 
             # Load SKS mapping dari GitHub (ganti URL ini sesuai file kamu)
-            url_sks = "https://github.com/FerdyanHidayat18/streamlit-uji-korelasi/blob/main/sks_mapping.csv"
+            url_sks = "https://raw.githubusercontent.com/FerdyanHidayat18/streamlit-uji-korelasi/main/sks_mapping.csv"
             sks_df = pd.read_csv(url_sks)
 
             # Identifikasi kolom nilai dan kehadiran
