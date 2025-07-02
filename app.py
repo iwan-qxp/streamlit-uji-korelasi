@@ -82,11 +82,12 @@ def korelasi_data_nilai():
     uploaded_transkrip = st.file_uploader("Unggah file data transkrip mahasiswa (.xlsx)", type=["xlsx"])
     uploaded_sks = st.file_uploader("Unggah file mapping SKS mata kuliah (.csv)", type=["csv"])
 
-    # Validasi file
     if uploaded_transkrip is None or uploaded_sks is None:
-        st.warning("Mohon unggah kedua file untuk melanjutkan analisis.")
-        return
+    st.warning("Mohon unggah kedua file untuk melanjutkan analisis.")
+    return
 
+# Tambahkan tombol "Run Analisis"
+if st.button("🚀 Jalankan Analisis Korelasi"):
     # Load data dari file upload
     analysis_df = pd.read_excel(uploaded_transkrip)
     sks_df = pd.read_csv(uploaded_sks)
