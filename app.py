@@ -11,7 +11,6 @@ warnings.simplefilter(action="ignore", category=PerformanceWarning)
 
 st.set_page_config(page_title="Uji Korelasi", layout="wide")
 
-# --- UI PILIH DATA ---
 st.title("📊 Aplikasi Uji Korelasi IPK Mahasiswa")
 
 selected_data = st.radio("Pilih jenis data yang ingin diuji korelasinya:", 
@@ -19,7 +18,23 @@ selected_data = st.radio("Pilih jenis data yang ingin diuji korelasinya:",
 
 st.write("---")
 
-# === FUNGSI UNTUK DATA 1 ===
+def tampilkan_kesimpulan(results):
+    st.write("### 📌 Kesimpulan Uji Korelasi Spearman")
+    for var, rho, p_val in results:
+        signifikan = "signifikan" if p_val < 0.05 else "tidak signifikan"
+        if rho > 0:
+            arah = "positif"
+        elif rho < 0:
+            arah = "negatif"
+        else:
+            arah = "nol"
+
+        st.markdown(
+            f"- Variabel **{var}** memiliki korelasi {arah} dengan IPK "
+            f"dengan Spearman ρ = {rho:.3f} dan p-value = {p_val:.3f}. "
+            f"Hasil ini **{signifikan}**."
+        )
+
 def korelasi_data_survey():
     st.subheader("📁 Hasil Uji Korelasi - Data Survey Sosial Ekonomi")
 
@@ -52,7 +67,6 @@ def korelasi_data_survey():
     survey_df['akses_sumber_belajar'] = survey_df['akses_sumber_belajar'].map(frekuensi_mapping)
     survey_df['penanggung_biaya'] = survey_df['penanggung_biaya'].map(penanggung_biaya_mapping)
 
-    # Korelasi Spearman
     numerical_cols = ['pendidikan_ayah', 'pendidikan_ibu', 'pendapatan',
                       'kendala_finansial', 'akses_sumber_belajar', 'penanggung_biaya']
     
@@ -61,11 +75,11 @@ def korelasi_data_survey():
         corr, p = spearmanr(survey_df[col], survey_df['IPK'])
         results.append((col, corr, p))
 
-    # Tampilkan hasil
     st.write("### Tabel Hasil Uji Korelasi Spearman")
     st.table(pd.DataFrame(results, columns=["Variabel", "Spearman ρ", "p-value"]).round(3))
 
-    # Heatmap
+    tampilkan_kesimpulan(results)
+
     st.write("### 🔥 Visualisasi Korelasi (Heatmap)")
     corr_df = survey_df[['IPK'] + numerical_cols]
     corr_matrix = corr_df.corr(method='spearman')
@@ -77,18 +91,15 @@ def korelasi_data_survey():
 def korelasi_data_nilai():
     st.subheader("📁 Hasil Uji Korelasi - Data Nilai Transkrip Mahasiswa")
 
-    # Upload hanya file transkrip
     uploaded_transkrip = st.file_uploader("Unggah file data transkrip mahasiswa (.xlsx)", type=["xlsx"])
 
     if uploaded_transkrip is not None:
         if st.button("🚀 Jalankan Analisis Korelasi"):
             analysis_df = pd.read_excel(uploaded_transkrip)
 
-            # Load SKS mapping dari GitHub (ganti URL ini sesuai file kamu)
             url_sks = "https://raw.githubusercontent.com/FerdyanHidayat18/streamlit-uji-korelasi/main/sks_mapping.csv"
             sks_df = pd.read_csv(url_sks)
 
-            # Identifikasi kolom nilai dan kehadiran
             nilai_cols = [col for col in analysis_df.columns if col.endswith("(nilai)")]
             hadir_cols = [col.replace("(nilai)", "(hadir)") for col in nilai_cols]
             mk_names = [col.replace(" (nilai)", "") for col in nilai_cols]
@@ -174,6 +185,8 @@ def korelasi_data_nilai():
             st.write("### Tabel Hasil Uji Korelasi Spearman")
             st.table(pd.DataFrame(results, columns=["Variabel", "Spearman ρ", "p-value"]).round(3))
 
+            tampilkan_kesimpulan(results)
+
             st.write("### 🔥 Visualisasi Korelasi (Heatmap)")
             corr_df = final_df[['IPK'] + cols_for_corr]
             corr_matrix = corr_df.corr(method='spearman')
@@ -182,7 +195,6 @@ def korelasi_data_nilai():
             sns.heatmap(corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
             st.pyplot(fig)
 
-# === HANDLE PILIHAN ===
 if selected_data == "Data Survey Sosial Ekonomi":
     korelasi_data_survey()
 elif selected_data == "Data Nilai Transkrip Mahasiswa":
