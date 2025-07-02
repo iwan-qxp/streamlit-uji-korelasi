@@ -13,11 +13,20 @@ st.set_page_config(page_title="Uji Korelasi", layout="wide")
 
 # --- UI PILIH DATA ---
 st.title("📊 Aplikasi Uji Korelasi IPK Mahasiswa")
+st.markdown("""
+Aplikasi ini melakukan uji korelasi Spearman antara berbagai variabel sosial ekonomi dan nilai IPK mahasiswa.
+Anda dapat memilih dataset dan mengunggah file untuk analisis nilai transkrip.
+""")
 
 selected_data = st.radio("Pilih jenis data yang ingin diuji korelasinya:", 
                          ["Data Survey Sosial Ekonomi", "Data Nilai Transkrip Mahasiswa"])
 
 st.write("---")
+
+def interpretasi_korelasi(rho, p_val):
+    signif = "signifikan" if p_val < 0.05 else "tidak signifikan"
+    arah = "positif" if rho > 0 else "negatif" if rho < 0 else "tidak ada"
+    return f"Koefisien korelasi Spearman sebesar {rho:.3f} dengan p-value {p_val:.3f} menunjukkan korelasi {arah} yang {signif} secara statistik (α=0.05)."
 
 # === FUNGSI UNTUK DATA 1 ===
 def korelasi_data_survey():
@@ -52,7 +61,6 @@ def korelasi_data_survey():
     survey_df['akses_sumber_belajar'] = survey_df['akses_sumber_belajar'].map(frekuensi_mapping)
     survey_df['penanggung_biaya'] = survey_df['penanggung_biaya'].map(penanggung_biaya_mapping)
 
-    # Korelasi Spearman
     numerical_cols = ['pendidikan_ayah', 'pendidikan_ibu', 'pendapatan',
                       'kendala_finansial', 'akses_sumber_belajar', 'penanggung_biaya']
     
@@ -63,7 +71,14 @@ def korelasi_data_survey():
 
     # Tampilkan hasil
     st.write("### Tabel Hasil Uji Korelasi Spearman")
-    st.table(pd.DataFrame(results, columns=["Variabel", "Spearman ρ", "p-value"]).round(3))
+    df_result = pd.DataFrame(results, columns=["Variabel", "Spearman ρ", "p-value"]).round(3)
+    st.table(df_result)
+
+    # Tampilkan interpretasi per variabel
+    st.write("### 📌 Interpretasi Hasil Korelasi")
+    for idx, row in df_result.iterrows():
+        kesimpulan = interpretasi_korelasi(row['Spearman ρ'], row['p-value'])
+        st.write(f"- **{row['Variabel']}**: {kesimpulan}")
 
     # Heatmap
     st.write("### 🔥 Visualisasi Korelasi (Heatmap)")
@@ -74,36 +89,31 @@ def korelasi_data_survey():
     sns.heatmap(corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
     st.pyplot(fig)
 
+
 def korelasi_data_nilai():
     st.subheader("📁 Hasil Uji Korelasi - Data Nilai Transkrip Mahasiswa")
 
-    # Upload file dari user
     uploaded_transkrip = st.file_uploader("Unggah file data transkrip mahasiswa (.xlsx)", type=["xlsx"])
     uploaded_sks = st.file_uploader("Unggah file mapping SKS mata kuliah (.csv)", type=["csv"])
 
     if uploaded_transkrip is not None and uploaded_sks is not None:
         if st.button("🚀 Jalankan Analisis Korelasi"):
-            # Load data dari file upload
             analysis_df = pd.read_excel(uploaded_transkrip)
             sks_df = pd.read_csv(uploaded_sks)
 
-            # Identifikasi kolom nilai dan kehadiran
             nilai_cols = [col for col in analysis_df.columns if col.endswith("(nilai)")]
             hadir_cols = [col.replace("(nilai)", "(hadir)") for col in nilai_cols]
             mk_names = [col.replace(" (nilai)", "") for col in nilai_cols]
 
-            # Pastikan kolom hadir bertipe numerik
             for col in hadir_cols:
                 if col in analysis_df.columns:
                     analysis_df[col] = pd.to_numeric(analysis_df[col], errors='coerce')
 
-            # Definisikan bobot nilai huruf
             bobot_ipk = {
                 "A": 4.0, "A-": 3.75, "B+": 3.5, "B": 3.0, "B-": 2.75,
                 "C+": 2.5, "C": 2.0, "D": 1.0, "E": 0.0, "F": 0.0
             }
 
-            # Fungsi konversi nilai numerik ke nilai huruf
             def konversi_nilai(nilai, hadir):
                 if pd.isna(hadir) or hadir < 11:
                     return pd.NA
@@ -120,21 +130,18 @@ def korelasi_data_nilai():
                 elif nilai >= 45: return "D"
                 else: return "E"
 
-            # Buat kolom nilai huruf
             for mk, n_col, h_col in zip(mk_names, nilai_cols, hadir_cols):
                 if n_col in analysis_df.columns and h_col in analysis_df.columns:
                     analysis_df[f"{mk} (nilai_huruf)"] = analysis_df.apply(
                         lambda row: konversi_nilai(row[n_col], row[h_col]), axis=1
                     )
 
-            # Tambahkan kolom SKS sesuai mata kuliah
             analysis_df_merged = analysis_df.copy()
             for mk in mk_names:
                 if mk in sks_df["mata_kuliah"].values:
                     sks_value = sks_df[sks_df["mata_kuliah"] == mk]["sks"].values[0]
                     analysis_df_merged[f"{mk}_sks"] = sks_value
 
-            # Hitung IPK tiap mahasiswa
             ipk_list = []
             for idx, row in analysis_df_merged.iterrows():
                 total_bobot = 0
@@ -152,10 +159,8 @@ def korelasi_data_nilai():
                 ipk_list.append(ipk)
             analysis_df_merged["IPK"] = ipk_list
 
-            # Kolom yang dibutuhkan
             required_cols = ['jenis_kelamin', 'pendidikan_ayah', 'pendidikan_ibu', 'IPK']
 
-            # Filter data yang lengkap dan valid
             pendidikan_valid = ['Tidak Sekolah', 'SD', 'SMP', 'SMA', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3']
             final_df = analysis_df_merged[required_cols].copy()
             final_df = final_df[
@@ -164,7 +169,6 @@ def korelasi_data_nilai():
             ].copy()
             final_df.dropna(inplace=True)
 
-            # Encoding kategorikal ke numerik
             pendidikan_map = {
                 "Tidak Sekolah": 0, "SD": 1, "SMP": 2, "SMA": 3, "D1": 4, "D2": 5,
                 "D3": 6, "D4": 7, "S1": 8, "S2": 9, "S3": 10
@@ -173,18 +177,21 @@ def korelasi_data_nilai():
             final_df['pendidikan_ibu'] = final_df['pendidikan_ibu'].map(pendidikan_map)
             final_df['jenis_kelamin'] = final_df['jenis_kelamin'].map({'Laki-laki': 1, 'Perempuan': 0})
 
-            # Uji Korelasi Spearman
             cols_for_corr = ['pendidikan_ayah', 'pendidikan_ibu']
             results = []
             for col in cols_for_corr:
                 rho, p_val = spearmanr(final_df[col], final_df['IPK'])
                 results.append((col, rho, p_val))
 
-            # Tampilkan hasil korelasi
             st.write("### Tabel Hasil Uji Korelasi Spearman")
-            st.table(pd.DataFrame(results, columns=["Variabel", "Spearman ρ", "p-value"]).round(3))
+            df_result = pd.DataFrame(results, columns=["Variabel", "Spearman ρ", "p-value"]).round(3)
+            st.table(df_result)
 
-            # Visualisasi Heatmap
+            st.write("### 📌 Interpretasi Hasil Korelasi")
+            for idx, row in df_result.iterrows():
+                kesimpulan = interpretasi_korelasi(row['Spearman ρ'], row['p-value'])
+                st.write(f"- **{row['Variabel']}**: {kesimpulan}")
+
             st.write("### 🔥 Visualisasi Korelasi (Heatmap)")
             corr_df = final_df[['IPK'] + cols_for_corr]
             corr_matrix = corr_df.corr(method='spearman')
