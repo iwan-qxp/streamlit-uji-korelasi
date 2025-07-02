@@ -74,7 +74,6 @@ def korelasi_data_survey():
     sns.heatmap(corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
     st.pyplot(fig)
 
-# === FUNGSI UNTUK DATA 2 ===
 def korelasi_data_nilai():
     st.subheader("📁 Hasil Uji Korelasi - Data Nilai Transkrip Mahasiswa")
 
@@ -82,121 +81,117 @@ def korelasi_data_nilai():
     uploaded_transkrip = st.file_uploader("Unggah file data transkrip mahasiswa (.xlsx)", type=["xlsx"])
     uploaded_sks = st.file_uploader("Unggah file mapping SKS mata kuliah (.csv)", type=["csv"])
 
-    # Validasi file
-if uploaded_transkrip is None or uploaded_sks is None:
-    st.warning("Mohon unggah kedua file untuk melanjutkan analisis.")
-    return
+    if uploaded_transkrip is not None and uploaded_sks is not None:
+        if st.button("🚀 Jalankan Analisis Korelasi"):
+            # Load data dari file upload
+            analysis_df = pd.read_excel(uploaded_transkrip)
+            sks_df = pd.read_csv(uploaded_sks)
 
-# Load data dari file upload
-analysis_df = pd.read_excel(uploaded_transkrip)
-sks_df = pd.read_csv(uploaded_sks)
+            # Identifikasi kolom nilai dan kehadiran
+            nilai_cols = [col for col in analysis_df.columns if col.endswith("(nilai)")]
+            hadir_cols = [col.replace("(nilai)", "(hadir)") for col in nilai_cols]
+            mk_names = [col.replace(" (nilai)", "") for col in nilai_cols]
 
-    # Identifikasi kolom nilai dan kehadiran
-    nilai_cols = [col for col in analysis_df.columns if col.endswith("(nilai)")]
-    hadir_cols = [col.replace("(nilai)", "(hadir)") for col in nilai_cols]
-    mk_names = [col.replace(" (nilai)", "") for col in nilai_cols]
+            # Pastikan kolom hadir bertipe numerik
+            for col in hadir_cols:
+                if col in analysis_df.columns:
+                    analysis_df[col] = pd.to_numeric(analysis_df[col], errors='coerce')
 
-    # Pastikan kolom hadir bertipe numerik
-    for col in hadir_cols:
-        if col in analysis_df.columns:
-            analysis_df[col] = pd.to_numeric(analysis_df[col], errors='coerce')
+            # Definisikan bobot nilai huruf
+            bobot_ipk = {
+                "A": 4.0, "A-": 3.75, "B+": 3.5, "B": 3.0, "B-": 2.75,
+                "C+": 2.5, "C": 2.0, "D": 1.0, "E": 0.0, "F": 0.0
+            }
 
-    # Definisikan bobot nilai huruf
-    bobot_ipk = {
-        "A": 4.0, "A-": 3.75, "B+": 3.5, "B": 3.0, "B-": 2.75,
-        "C+": 2.5, "C": 2.0, "D": 1.0, "E": 0.0, "F": 0.0
-    }
+            # Fungsi konversi nilai numerik ke nilai huruf
+            def konversi_nilai(nilai, hadir):
+                if pd.isna(hadir) or hadir < 11:
+                    return pd.NA
+                if pd.isna(nilai):
+                    return pd.NA
+                nilai = float(nilai)
+                if nilai >= 85: return "A"
+                elif nilai >= 80: return "A-"
+                elif nilai >= 75: return "B+"
+                elif nilai >= 70: return "B"
+                elif nilai >= 65: return "B-"
+                elif nilai >= 60: return "C+"
+                elif nilai >= 55: return "C"
+                elif nilai >= 45: return "D"
+                else: return "E"
 
-    # Fungsi konversi nilai numerik ke nilai huruf
-    def konversi_nilai(nilai, hadir):
-        if pd.isna(hadir) or hadir < 11:
-            return pd.NA
-        if pd.isna(nilai):
-            return pd.NA
-        nilai = float(nilai)
-        if nilai >= 85: return "A"
-        elif nilai >= 80: return "A-"
-        elif nilai >= 75: return "B+"
-        elif nilai >= 70: return "B"
-        elif nilai >= 65: return "B-"
-        elif nilai >= 60: return "C+"
-        elif nilai >= 55: return "C"
-        elif nilai >= 45: return "D"
-        else: return "E"
+            # Buat kolom nilai huruf
+            for mk, n_col, h_col in zip(mk_names, nilai_cols, hadir_cols):
+                if n_col in analysis_df.columns and h_col in analysis_df.columns:
+                    analysis_df[f"{mk} (nilai_huruf)"] = analysis_df.apply(
+                        lambda row: konversi_nilai(row[n_col], row[h_col]), axis=1
+                    )
 
-    # Buat kolom nilai huruf
-    for mk, n_col, h_col in zip(mk_names, nilai_cols, hadir_cols):
-        if n_col in analysis_df.columns and h_col in analysis_df.columns:
-            analysis_df[f"{mk} (nilai_huruf)"] = analysis_df.apply(
-                lambda row: konversi_nilai(row[n_col], row[h_col]), axis=1
-            )
+            # Tambahkan kolom SKS sesuai mata kuliah
+            analysis_df_merged = analysis_df.copy()
+            for mk in mk_names:
+                if mk in sks_df["mata_kuliah"].values:
+                    sks_value = sks_df[sks_df["mata_kuliah"] == mk]["sks"].values[0]
+                    analysis_df_merged[f"{mk}_sks"] = sks_value
 
-    # Tambahkan kolom SKS sesuai mata kuliah
-    analysis_df_merged = analysis_df.copy()
-    for mk in mk_names:
-        if mk in sks_df["mata_kuliah"].values:
-            sks_value = sks_df[sks_df["mata_kuliah"] == mk]["sks"].values[0]
-            analysis_df_merged[f"{mk}_sks"] = sks_value
+            # Hitung IPK tiap mahasiswa
+            ipk_list = []
+            for idx, row in analysis_df_merged.iterrows():
+                total_bobot = 0
+                total_sks = 0
+                for mk in mk_names:
+                    nilai_huruf_col = f"{mk} (nilai_huruf)"
+                    sks_col = f"{mk}_sks"
+                    if nilai_huruf_col in analysis_df_merged.columns and sks_col in analysis_df_merged.columns:
+                        nilai_huruf = row[nilai_huruf_col]
+                        sks = row[sks_col]
+                        if pd.notna(nilai_huruf) and pd.notna(sks):
+                            total_bobot += bobot_ipk.get(nilai_huruf, 0) * sks
+                            total_sks += sks
+                ipk = round(total_bobot / total_sks, 2) if total_sks > 0 else np.nan
+                ipk_list.append(ipk)
+            analysis_df_merged["IPK"] = ipk_list
 
-    # Hitung IPK tiap mahasiswa
-    ipk_list = []
-    for idx, row in analysis_df_merged.iterrows():
-        total_bobot = 0
-        total_sks = 0
-        for mk in mk_names:
-            nilai_huruf_col = f"{mk} (nilai_huruf)"
-            sks_col = f"{mk}_sks"
-            if nilai_huruf_col in analysis_df_merged.columns and sks_col in analysis_df_merged.columns:
-                nilai_huruf = row[nilai_huruf_col]
-                sks = row[sks_col]
-                if pd.notna(nilai_huruf) and pd.notna(sks):
-                    total_bobot += bobot_ipk.get(nilai_huruf, 0) * sks
-                    total_sks += sks
-        ipk = round(total_bobot / total_sks, 2) if total_sks > 0 else np.nan
-        ipk_list.append(ipk)
-    analysis_df_merged["IPK"] = ipk_list
+            # Kolom yang dibutuhkan
+            required_cols = ['jenis_kelamin', 'pendidikan_ayah', 'pendidikan_ibu', 'IPK']
 
-    # Kolom yang dibutuhkan
-    required_cols = ['jenis_kelamin', 'pendidikan_ayah', 'pendidikan_ibu', 'IPK']
+            # Filter data yang lengkap dan valid
+            pendidikan_valid = ['Tidak Sekolah', 'SD', 'SMP', 'SMA', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3']
+            final_df = analysis_df_merged[required_cols].copy()
+            final_df = final_df[
+                final_df['pendidikan_ayah'].isin(pendidikan_valid) &
+                final_df['pendidikan_ibu'].isin(pendidikan_valid)
+            ].copy()
+            final_df.dropna(inplace=True)
 
-    # Filter data yang lengkap dan valid
-    pendidikan_valid = ['Tidak Sekolah', 'SD', 'SMP', 'SMA', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3']
-    final_df = analysis_df_merged[required_cols].copy()
-    final_df = final_df[
-        final_df['pendidikan_ayah'].isin(pendidikan_valid) &
-        final_df['pendidikan_ibu'].isin(pendidikan_valid)
-    ].copy()
-    final_df.dropna(inplace=True)
+            # Encoding kategorikal ke numerik
+            pendidikan_map = {
+                "Tidak Sekolah": 0, "SD": 1, "SMP": 2, "SMA": 3, "D1": 4, "D2": 5,
+                "D3": 6, "D4": 7, "S1": 8, "S2": 9, "S3": 10
+            }
+            final_df['pendidikan_ayah'] = final_df['pendidikan_ayah'].map(pendidikan_map)
+            final_df['pendidikan_ibu'] = final_df['pendidikan_ibu'].map(pendidikan_map)
+            final_df['jenis_kelamin'] = final_df['jenis_kelamin'].map({'Laki-laki': 1, 'Perempuan': 0})
 
-    # Encoding kategorikal ke numerik
-    pendidikan_map = {
-        "Tidak Sekolah": 0, "SD": 1, "SMP": 2, "SMA": 3, "D1": 4, "D2": 5,
-        "D3": 6, "D4": 7, "S1": 8, "S2": 9, "S3": 10
-    }
-    final_df['pendidikan_ayah'] = final_df['pendidikan_ayah'].map(pendidikan_map)
-    final_df['pendidikan_ibu'] = final_df['pendidikan_ibu'].map(pendidikan_map)
-    final_df['jenis_kelamin'] = final_df['jenis_kelamin'].map({'Laki-laki': 1, 'Perempuan': 0})
+            # Uji Korelasi Spearman
+            cols_for_corr = ['pendidikan_ayah', 'pendidikan_ibu']
+            results = []
+            for col in cols_for_corr:
+                rho, p_val = spearmanr(final_df[col], final_df['IPK'])
+                results.append((col, rho, p_val))
 
-    # Uji Korelasi Spearman
-    cols_for_corr = ['pendidikan_ayah', 'pendidikan_ibu']
-    results = []
-    for col in cols_for_corr:
-        rho, p_val = spearmanr(final_df[col], final_df['IPK'])
-        results.append((col, rho, p_val))
+            # Tampilkan hasil korelasi
+            st.write("### Tabel Hasil Uji Korelasi Spearman")
+            st.table(pd.DataFrame(results, columns=["Variabel", "Spearman ρ", "p-value"]).round(3))
 
-    # Tampilkan hasil korelasi
-    st.write("### Tabel Hasil Uji Korelasi Spearman")
-    st.table(pd.DataFrame(results, columns=["Variabel", "Spearman ρ", "p-value"]).round(3))
+            # Visualisasi Heatmap
+            st.write("### 🔥 Visualisasi Korelasi (Heatmap)")
+            corr_df = final_df[['IPK'] + cols_for_corr]
+            corr_matrix = corr_df.corr(method='spearman')
 
-    # Visualisasi Heatmap
-    st.write("### 🔥 Visualisasi Korelasi (Heatmap)")
-    corr_df = final_df[['IPK'] + cols_for_corr]
-    corr_matrix = corr_df.corr(method='spearman')
-
-    fig, ax = plt.subplots(figsize=(6, 5))
-    sns.heatmap(corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
-    st.pyplot(fig)
-
+            fig, ax = plt.subplots(figsize=(6, 5))
+            sns.heatmap(corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
+            st.pyplot(fig)
 
 # === HANDLE PILIHAN ===
 if selected_data == "Data Survey Sosial Ekonomi":
