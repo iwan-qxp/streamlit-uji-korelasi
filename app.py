@@ -11,7 +11,7 @@ warnings.simplefilter(action="ignore", category=PerformanceWarning)
 
 st.set_page_config(page_title="Uji Korelasi", layout="wide")
 
-st.title("📊 Website Uji Korelasi IPK Mahasiswa")
+st.title("📊 Website Uji Korelasi Sosial Ekonomi Dengan IPK Mahasiswa")
 
 selected_data = st.radio("Pilih jenis data yang ingin diuji korelasinya:", 
                          ["Data Survey Sosial Ekonomi", "Data Nilai Transkrip Mahasiswa"])
